@@ -3,6 +3,7 @@ using CsvHelper;
 using CsvHelper.Configuration;
 using CsvHelper.Configuration.Attributes;
 
+string MatrixPath = "C:\\Users\\Давід\\RiderProjects\\Last4TermV2\\Last4TermV2\\Matrix.csv";
 string csvFilePath = "C:\\Users\\Давід\\RiderProjects\\Last4TermV2\\Last4TermV2\\movie_data.csv";
 string csvFilePathUser = "C:\\Users\\Давід\\RiderProjects\\Last4TermV2\\Last4TermV2\\users_export.csv";
 string csvFilePathRatings = "C:\\Users\\Давід\\RiderProjects\\Last4TermV2\\Last4TermV2\\ratings_export.csv";
@@ -41,7 +42,17 @@ var recordsRaitings = csvRaiting.GetRecords<Raiting>().ToList();
 var readerUser = new StreamReader(csvFilePathUser);
 var csvUSer = new CsvReader(readerUser, config);
 var recordsUsers = csvUSer.GetRecords<Users>().ToList();
+
+
 Console.WriteLine("d");
+
+//var RatingDict=recordsRaitings.ToDictionary(x => x.user_id, x => x.movie_id);
+
+//var dictUSer = new Dictionary<string, List<Raiting>>();
+
+var userRatings = recordsRaitings
+    .GroupBy(r => r.user_id)
+    .ToDictionary(g => g.Key, g => g.ToList());
 var Pointer = new Dictionary<string, int>()
 {
     {"Drama",0},
@@ -112,6 +123,12 @@ for (int i = 0; i < recordsUsers.Count(); i++)
 
     
 }
+
+
+
+
+
+
 Console.WriteLine("d");
  double[] GenreScore(double[] rates, double[] ratesCount)
 {
@@ -127,7 +144,8 @@ Console.WriteLine("d");
     return rates;
 }
 
-
+WriteMatrixToCsv(UserMatrix, MatrixPath);
+var Written =ReadDataFromCsv(MatrixPath);
 var User = new double[8];
 while (true)
 {
@@ -156,7 +174,7 @@ while (true)
                     }
                 }
 
-                Console.WriteLine($"You've rated a film '{filmName}' ({filmId}) as {rating}");
+                Console.WriteLine($"You've rated a film '{filmName}' ({filmId[0]}) as {rating}");
             }
         }
         else
@@ -170,6 +188,97 @@ while (true)
               {
                   Console.WriteLine(film);
                }
+        }
+    }else if (input[0] == "recommend")
+    {
+        for (int i = 0; i < User.Length; i++)
+        {
+            User[i]=( User[i] -  User.Min()) / ( User.Max() -  User.Min());
+        }
+
+        double minDistance = double.MaxValue;
+        int closestUserIndex = -1;
+
+        for (int i = 0; i < UserMatrix.GetLength(0); i++)
+        {
+            double distance = 0;
+
+            for (int j = 0; j < UserMatrix.GetLength(1); j++)
+            {
+                distance += Math.Pow(UserMatrix[i, j] - User[j], 2);
+            }
+
+            distance = Math.Sqrt(distance);
+
+            if (distance < minDistance && distance > 0)
+            {
+                minDistance = distance;
+                closestUserIndex = i;
+            }
+        }
+        if (closestUserIndex != -1 && closestUserIndex < recordsUsers.Count)
+        {
+            var closestUser = recordsUsers[closestUserIndex].username;
+            if (dictUSer.ContainsKey(closestUser))
+            {
+                var closestUserFilms = dictUSer[closestUser]
+                    .Where(r => Convert.ToDouble(r.rating_val) >= 7)
+                    .Select(r => filmTitles.FirstOrDefault(film => film.movie_id == r.movie_id)?.movie_title)
+                    .Where(title => !string.IsNullOrEmpty(title))
+                    .ToList();
+
+                if (closestUserFilms.Any())
+                {
+                    Console.WriteLine($"Closest user: {closestUser}");
+                    Console.WriteLine("Recommended films:");
+                    foreach (var film in closestUserFilms)
+                    {
+                        Console.WriteLine(film);
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"Closest user: {closestUser}");
+                    Console.WriteLine("No recommended films found.");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"User '{closestUser}' not found in the dictionary.");
+            }
+        }
+        else
+        {
+            Console.WriteLine("No closest user found.");
+        }
+    }
+}
+
+
+void WriteMatrixToCsv(double[,] matrix, string filePath)
+{
+    int rows = matrix.GetLength(0);
+    int columns = matrix.GetLength(1);
+
+    CultureInfo culture = CultureInfo.InvariantCulture;
+
+    using (StreamWriter writer = new StreamWriter(filePath))
+    {
+        for (int i = 0; i < rows; i++)
+        {
+            for (int j = 0; j < columns; j++)
+            {
+                string value = matrix[i, j].ToString(culture);
+
+                writer.Write(value);
+
+                // Add a comma for all elements except the last one in each row
+                if (j < columns - 1)
+                    writer.Write(",");
+            }
+
+            // Add a new line after each row
+            writer.WriteLine();
         }
     }
 }
@@ -247,6 +356,35 @@ List<string> LevinsteinList(string value, List<Film> checker)
         }
         return res;
     }
+double[,] ReadDataFromCsv(string filePath)
+{
+    string[] lines = File.ReadAllLines(filePath);
+    int rows = lines.Length;
+    int columns = lines[0].Split(',').Length;
+
+    double[,] matrix = new double[rows, columns];
+
+    for (int i = 0; i < rows; i++)
+    {
+        string[] values = lines[i].Split(',');
+        for (int j = 0; j < columns; j++)
+        {
+            if (values!=null)
+            {
+                matrix[i, j] = double.Parse(values[j], CultureInfo.InvariantCulture );
+            }
+            
+            
+          
+        }
+    }
+
+    return matrix;
+}
+    
+
+
+
 
 
 public class Film
